@@ -4,6 +4,7 @@ from enum import Enum
 from django.conf import settings
 from gql import gql, enum_type, query, field_resolver, type_resolver
 from gql.build_schema import build_schema_from_file
+from djgql.auth import login_required
 from pydantic import BaseModel
 
 type_defs = gql(
@@ -46,7 +47,9 @@ class Droid(Character):
 
 
 @query
-def hero(parent, info, episode: typing.Optional[Episode]) -> typing.Optional[Character]:
+@login_required
+def hero(parent, info, episode: typing.Optional[Episode] = None) -> typing.Optional[Character]:
+    print(info.context['request'].user)
     return Human(id='test')
 
 

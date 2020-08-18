@@ -35,11 +35,28 @@ urlpatterns = [
 ```
 
 ```python
+# utils.py
+def context_builder():
+    return {'version': 1}
+```
+
+```python
 # settings.py
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'djgql.auth.middleware.BasicAuthMiddleware',
+]
 GRAPHQL_SCHEMA_FILE = os.path.join(BASE_DIR, 'starwar.gql')
 GRAPHQL = {
     'SCHEMA': 'starwar.schema.schema',
-    'ENABLE_PLAYGROUND': True
+    'ENABLE_PLAYGROUND': True,
+    'CONTEXT_BUILDER': 'starwar.utils.context_builder
 }
 ```
 
@@ -50,6 +67,7 @@ from enum import Enum
 from django.conf import settings
 from gql import query, gql, type_resolver, enum_type, field_resolver
 from gql.build_schema import build_schema_from_file
+from djgql.auth import login_required
 from pydantic import BaseModel
 
 type_defs = gql("""
@@ -90,7 +108,10 @@ class Droid(Character):
 
 
 @query
+@login_required
 def hero(parent, info, episode: typing.Optional[Episode]) -> typing.Optional[Character]:
+    request = info.context['request']
+    print(request.user)
     return Human(id='test')
 
 

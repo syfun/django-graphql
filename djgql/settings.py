@@ -16,16 +16,15 @@ from django.conf import settings
 from django.test.signals import setting_changed
 
 DEFAULTS = {
+    # graphql schema
     'SCHEMA': None,
-    'AUTHENTICATION_CLASSES': ('djgql.auth.basic.BasicAuthentication',),
-    'DATETIME_CONVERT_TIMESTAMP': True,
-    'USER_CACHE_SETTER': 'djgql.utils.set_user_to_cache',
-    'USER_CACHE_GETTER': 'djgql.utils.get_user_from_cache',
     'ENABLE_PLAYGROUND': False,
+    # context builder method, return a dict
+    'CONTEXT_BUILDER': None,
 }
 
 # List of settings that may be in string import notation.
-IMPORT_STRINGS = ('SCHEMA', 'AUTHENTICATION_CLASSES', 'USER_CACHE_SETTER', 'USER_CACHE_GETTER')
+IMPORT_STRINGS = ('SCHEMA', 'CONTEXT_BUILDER')
 
 # List of settings that have been removed
 REMOVED_SETTINGS = ()
@@ -55,12 +54,7 @@ def import_from_string(val, setting_name):
         module = import_module(module_path)
         return getattr(module, class_name)
     except (ImportError, AttributeError) as e:
-        msg = "Could not import '%s' for API setting '%s'. %s: %s." % (
-            val,
-            setting_name,
-            e.__class__.__name__,
-            e,
-        )
+        msg = "Could not import '%s' for API setting '%s'. %s: %s." % (val, setting_name, e.__class__.__name__, e,)
         raise ImportError(msg)
 
 
@@ -110,7 +104,7 @@ class APISettings:
         return val
 
     def __check_user_settings(self, user_settings):
-        SETTINGS_DOC = "http://github.com/teletraan/python-graphql"
+        SETTINGS_DOC = "http://github.com/syfun/django-graphql"
         for setting in REMOVED_SETTINGS:
             if setting in user_settings:
                 raise RuntimeError(

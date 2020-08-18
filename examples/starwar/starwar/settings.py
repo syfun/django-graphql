@@ -47,6 +47,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'djgql.auth.middleware.BasicAuthMiddleware',
 ]
 
 ROOT_URLCONF = 'starwar.urls'
@@ -73,12 +74,7 @@ WSGI_APPLICATION = 'starwar.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-    }
-}
+DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),}}
 
 
 # Password validation
@@ -112,4 +108,10 @@ USE_TZ = True
 STATIC_URL = '/static/'
 
 GRAPHQL_SCHEMA_FILE = os.path.join(BASE_DIR, 'starwar.gql')
-GRAPHQL = {'SCHEMA': 'starwar.schema.schema', 'ENABLE_PLAYGROUND': True}
+
+
+GRAPHQL = {
+    'SCHEMA': 'starwar.schema.schema',
+    'ENABLE_PLAYGROUND': True,
+    'CONTEXT_BUILDER': 'starwar.utils.context_builder',
+}

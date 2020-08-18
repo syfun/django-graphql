@@ -1,5 +1,6 @@
 import json
 import traceback
+import typing
 
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
@@ -10,12 +11,7 @@ from gql.playground import PLAYGROUND_HTML
 from gql.utils import place_files_in_operations
 from graphql import ExecutionResult, GraphQLError, GraphQLSchema, graphql_sync
 
-from .exceptions import (
-    AuthenticationError,
-    GraphQLExtensionError,
-    MethodNotAllowedError,
-    UserInputError,
-)
+from .exceptions import GraphQLExtensionError, MethodNotAllowedError, UserInputError
 from .response import Response
 from .settings import api_settings
 
@@ -23,36 +19,17 @@ from .settings import api_settings
 class GraphQLView(View):
     schema: GraphQLSchema
 
-    # pretty: bool = False
-    batch: bool = False
-    authenticators = []
+    context_builder: typing.Callable = None
 
     def __init__(self, **kwargs):
         self.schema = api_settings.SCHEMA
-        self.authenticators = [auth() for auth in api_settings.AUTHENTICATION_CLASSES]
+        self.context_builder = api_settings.CONTEXT_BUILDER
         super().__init__(**kwargs)
 
     @classmethod
     def as_view(cls, **initkwargs):
         view = super().as_view(**initkwargs)
         return csrf_exempt(view)
-
-    def authenticate(self, request):
-        for auth in self.authenticators:
-            user_token = auth.authenticate(request)
-            if user_token is not None:
-                return user_token[0]
-        return None
-
-    def perform_authentication(self, request: HttpRequest):
-        """
-        Perform authentication on the incoming request.
-
-        Note that if you override this and simply 'pass', then authentication
-        will instead be performed lazily, the first time either
-        `request.user` or `request.auth` is accessed.
-        """
-        request.user = self.authenticate(request)
 
     def dispatch(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
         try:
@@ -63,12 +40,8 @@ class GraphQLView(View):
             if method != 'post':
                 raise MethodNotAllowedError()
 
-            self.perform_authentication(request)
-
             data = self.parse_body(request)
             return self.get_response(request, data)
-        except AuthenticationError as e:
-            return Response(data={'errors': [e.formatted]}, status=401)
         except GraphQLExtensionError as e:
             return Response(data={'errors': [e.formatted]})
 
@@ -77,7 +50,7 @@ class GraphQLView(View):
             raise ValueError("Received null or undefined error.")
         formatted = dict(  # noqa: E701 (pycqa/flake8#394)
             message=error.message or "An unknown error occurred.",
-            locations=[l._asdict() for l in error.locations] if error.locations else None,
+            locations=[loc._asdict() for loc in error.locations] if error.locations else None,
             path=error.path,
         )
         if settings.DEBUG and error.original_error:
@@ -103,10 +76,6 @@ class GraphQLView(View):
         if execution_result.errors:
             data['errors'] = [self.format_error(e) for e in execution_result.errors]
         data['data'] = execution_result.data
-
-        if self.batch:
-            data['id'] = id
-
         return Response(data)
 
     def parse_body(self, request: HttpRequest) -> dict:
@@ -122,19 +91,7 @@ class GraphQLView(View):
                 raise UserInputError(str(e))
 
             try:
-                request_json = json.loads(body)
-                if self.batch:
-                    assert isinstance(request_json, list), (
-                        'Batch requests should receive a list, but received {}.'
-                    ).format(repr(request_json))
-                    assert len(request_json) > 0, 'Received an empty list in the batch request.'
-                else:
-                    assert isinstance(
-                        request_json, dict
-                    ), 'The received data is not a valid JSON query.'
-                return request_json
-            except AssertionError as e:
-                raise UserInputError(str(e))
+                return json.loads(body)
             except (TypeError, ValueError):
                 raise UserInputError(_('POST body sent invalid JSON.'))
 
@@ -157,24 +114,18 @@ class GraphQLView(View):
     def execute_graphql_request(self, request, query, variables, operation_name) -> ExecutionResult:
         if not query:
             raise UserInputError(_('Must provide query string.'))
-
+        if self.context_builder:
+            context = self.context_builder()
+        else:
+            context = {}
+        context['request'] = request
         return graphql_sync(
-            self.schema,
-            query,
-            variable_values=variables,
-            context_value=request,
-            operation_name=operation_name,
+            self.schema, query, variable_values=variables, context_value=context, operation_name=operation_name
         )
 
     @staticmethod
     def json_encode(d):
         return json.dumps(d, separators=(',', ':'))
-
-    # def json_encode(self, request, d, pretty=False):
-    #     if not (self.pretty or pretty) and not request.GET.get('pretty'):
-    #         return json.dumps(d, separators=(',', ':'))
-    #
-    #     return json.dumps(d, sort_keys=True, indent=2, separators=(',', ': '))
 
     @staticmethod
     def get_graphql_params(request, data):

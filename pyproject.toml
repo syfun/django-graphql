@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "django-graphql"
-version = "0.0.1"
+version = "0.0.2"
 description = ""
 authors = ["syfun <sunyu418@gmail.com>"]
 license = "MIT"
@@ -12,7 +12,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = ">=3.7"
 python-gql = "<0.1"
 django = "^3"
 

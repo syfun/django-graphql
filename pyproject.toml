@@ -1,6 +1,6 @@
 [tool.poetry]
-name = "django-graphql"
-version = "0.0.2"
+name = "django-gql"
+version = "0.0.1"
 description = ""
 authors = ["syfun <sunyu418@gmail.com>"]
 license = "MIT"

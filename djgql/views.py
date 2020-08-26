@@ -159,7 +159,6 @@ class AsyncGraphQLView(GraphQLView):
         raise MethodNotAllowedError()
 
     async def get(self, request, *args, **kwargs):
-        print('123123')
         if self.enable_playground:
             return HttpResponse(PLAYGROUND_HTML)
 

@@ -2,24 +2,15 @@ import typing
 from enum import Enum
 
 from django.conf import settings
-from gql import gql, enum_type, query, field_resolver, type_resolver, make_schema_from_file
-from djgql.auth import login_required
+from gql import enum_type, field_resolver, make_schema_from_file, query, type_resolver
 from pydantic import BaseModel
-
-type_defs = gql(
-    """
-type Query {
-    hello(name: String!): String!
-}
-"""
-)
 
 
 @enum_type
 class Episode(Enum):
-    NEWHOPE = 1
-    EMPIRE = 2
-    JEDI = 3
+    NEWHOPE = 'NEWHOPE'
+    EMPIRE = 'EMPIRE'
+    JEDI = 'JEDI'
 
 
 class Character(BaseModel):
@@ -46,9 +37,7 @@ class Droid(Character):
 
 
 @query
-@login_required
 def hero(parent, info, episode: typing.Optional[Episode] = None) -> typing.Optional[Character]:
-    print(info.context['request'].user)
     return Human(id='test')
 
 

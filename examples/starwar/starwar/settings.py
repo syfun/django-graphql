@@ -107,11 +107,5 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
-GRAPHQL_SCHEMA_FILE = os.path.join(BASE_DIR, 'starwar.gql')
-
-
-GRAPHQL = {
-    'SCHEMA': 'starwar.schema.schema',
-    'ENABLE_PLAYGROUND': True,
-    'CONTEXT_BUILDER': 'starwar.utils.context_builder',
-}
+GRAPHQL_SCHEMA_FILE = os.path.join(BASE_DIR, 'schema.graphql')
+GRAPHQL_PATH = 'graphql'

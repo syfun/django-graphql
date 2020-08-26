@@ -1,45 +1,40 @@
+import asyncio
 import json
 import traceback
 import typing
 
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
+from django.utils.decorators import classonlymethod, method_decorator
 from django.utils.translation import ugettext_lazy as _
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from gql.playground import PLAYGROUND_HTML
 from gql.utils import place_files_in_operations
-from graphql import ExecutionResult, GraphQLError, GraphQLSchema, graphql_sync
+from graphql import ExecutionResult, GraphQLError, GraphQLSchema, graphql, graphql_sync
 
 from .exceptions import GraphQLExtensionError, MethodNotAllowedError, UserInputError
 from .response import Response
-from .settings import api_settings
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class GraphQLView(View):
-    schema: GraphQLSchema
+    schema: GraphQLSchema = None
+    context_value: dict = {}
+    enable_playground: bool = True
 
-    context_builder: typing.Callable = None
+    http_method_names = ['get', 'post']
 
-    def __init__(self, **kwargs):
-        self.schema = api_settings.SCHEMA
-        self.context_builder = api_settings.CONTEXT_BUILDER
-        super().__init__(**kwargs)
+    def http_method_not_allowed(self, request, *args, **kwargs):
+        raise MethodNotAllowedError()
 
-    @classmethod
-    def as_view(cls, **initkwargs):
-        view = super().as_view(**initkwargs)
-        return csrf_exempt(view)
+    def get(self, request, *args, **kwargs):
+        if self.enable_playground:
+            return HttpResponse(PLAYGROUND_HTML)
+        raise MethodNotAllowedError()
 
-    def dispatch(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
+    def post(self, request, *args, **kwargs):
         try:
-            method = request.method.lower()
-            if method == 'get' and api_settings.ENABLE_PLAYGROUND:
-                return HttpResponse(PLAYGROUND_HTML)
-
-            if method != 'post':
-                raise MethodNotAllowedError()
-
             data = self.parse_body(request)
             return self.get_response(request, data)
         except GraphQLExtensionError as e:
@@ -114,13 +109,14 @@ class GraphQLView(View):
     def execute_graphql_request(self, request, query, variables, operation_name) -> ExecutionResult:
         if not query:
             raise UserInputError(_('Must provide query string.'))
-        if self.context_builder:
-            context = self.context_builder()
-        else:
-            context = {}
+        context = self.context_value or {}
         context['request'] = request
         return graphql_sync(
-            self.schema, query, variable_values=variables, context_value=context, operation_name=operation_name
+            self.schema,
+            query,
+            variable_values=variables,
+            context_value=context,
+            operation_name=operation_name,
         )
 
     @staticmethod
@@ -150,3 +146,59 @@ class GraphQLView(View):
         meta = request.META
         content_type = meta.get('CONTENT_TYPE', meta.get('HTTP_CONTENT_TYPE', ''))
         return content_type.split(';', 1)[0].lower()
+
+
+class AsyncGraphQLView(GraphQLView):
+    @classonlymethod
+    def as_view(cls, **initkwargs):
+        view = super().as_view(**initkwargs)
+        view._is_coroutine = asyncio.coroutines._is_coroutine
+        return view
+
+    async def http_method_not_allowed(self, request, *args, **kwargs):
+        raise MethodNotAllowedError()
+
+    async def get(self, request, *args, **kwargs):
+        print('123123')
+        if self.enable_playground:
+            return HttpResponse(PLAYGROUND_HTML)
+
+        raise MethodNotAllowedError()
+
+    async def post(self, request, *args, **kwargs):
+        try:
+            data = self.parse_body(request)
+            return await self.get_response(request, data)
+        except GraphQLExtensionError as e:
+            return Response(data={'errors': [e.formatted]})
+
+    async def get_response(self, request: HttpRequest, data: dict) -> Response:
+        query, variables, operation_name, id = self.get_graphql_params(request, data)
+
+        execution_result = await self.execute_graphql_request(
+            request, query, variables, operation_name
+        )
+
+        data = {}
+        if not execution_result:
+            return Response(data)
+
+        if execution_result.errors:
+            data['errors'] = [self.format_error(e) for e in execution_result.errors]
+        data['data'] = execution_result.data
+        return Response(data)
+
+    async def execute_graphql_request(
+        self, request, query, variables, operation_name
+    ) -> ExecutionResult:
+        if not query:
+            raise UserInputError(_('Must provide query string.'))
+        context = self.context_value or {}
+        context['request'] = request
+        return await graphql(
+            self.schema,
+            query,
+            variable_values=variables,
+            context_value=context,
+            operation_name=operation_name,
+        )

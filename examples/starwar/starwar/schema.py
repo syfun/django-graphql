@@ -2,8 +2,7 @@ import typing
 from enum import Enum
 
 from django.conf import settings
-from gql import gql, enum_type, query, field_resolver, type_resolver
-from gql.build_schema import build_schema_from_file
+from gql import gql, enum_type, query, field_resolver, type_resolver, make_schema_from_file
 from djgql.auth import login_required
 from pydantic import BaseModel
 
@@ -67,4 +66,4 @@ def resolve_character_type(obj, info, type_):
     return None
 
 
-schema = build_schema_from_file(settings.GRAPHQL_SCHEMA_FILE)
+schema = make_schema_from_file(settings.GRAPHQL_SCHEMA_FILE)
